@@ -1,6 +1,9 @@
 #ifndef __SST_RACKHELPERS_JSON
 #define __SST_RACKHELPERS_JSON
 
+#include <optional>
+#include <string>
+
 namespace sst::rackhelpers::json
 {
 template<typename T> std::optional<T> convertFromJson(json_t *o) {
