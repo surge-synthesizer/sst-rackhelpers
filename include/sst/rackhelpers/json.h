@@ -1,15 +1,27 @@
-#ifndef __SST_RACKHELPERS_JSON
-#define __SST_RACKHELPERS_JSON
+/*
+ * sst-rackhelpers - a Surge Synth Team product
+ *
+ * A set of header-only utilities we use when making stuff for VCV Rack
+ *
+ * Copyright 2019 - 2023, Various authors, as described in the github
+ * transaction log.
+ *
+ * sst-rackhelpers is released under the MIT license, found in the file
+ * "LICENSE.md" in this repository.
+ *
+ * All source for sst-rackhelpers is available at
+ * https://github.com/surge-synthesizer/sst-rackhelpers
+ */
+#ifndef INCLUDE_SST_RACKHELPERS_JSON_H
+#define INCLUDE_SST_RACKHELPERS_JSON_H
 
 #include <optional>
 #include <string>
 
 namespace sst::rackhelpers::json
 {
-template<typename T> std::optional<T> convertFromJson(json_t *o) {
-    return {};
-}
-template<> std::optional<std::string> convertFromJson<std::string>(json_t *o)
+template <typename T> std::optional<T> convertFromJson(json_t *o) { return {}; }
+template <> std::optional<std::string> convertFromJson<std::string>(json_t *o)
 {
     if (!o)
         return {};
@@ -20,7 +32,7 @@ template<> std::optional<std::string> convertFromJson<std::string>(json_t *o)
     }
     return {};
 }
-template<> std::optional<bool> convertFromJson<bool>(json_t *o)
+template <> std::optional<bool> convertFromJson<bool>(json_t *o)
 {
     if (!o)
         return {};
@@ -31,7 +43,7 @@ template<> std::optional<bool> convertFromJson<bool>(json_t *o)
     }
     return {};
 }
-template<> std::optional<int> convertFromJson<int>(json_t *o)
+template <> std::optional<int> convertFromJson<int>(json_t *o)
 {
     if (!o)
         return {};
@@ -43,7 +55,7 @@ template<> std::optional<int> convertFromJson<int>(json_t *o)
     return {};
 }
 
-template<> std::optional<float> convertFromJson<float>(json_t *o)
+template <> std::optional<float> convertFromJson<float>(json_t *o)
 {
     if (!o)
         return {};
@@ -55,8 +67,7 @@ template<> std::optional<float> convertFromJson<float>(json_t *o)
     return {};
 }
 
-
-template<> std::optional<double> convertFromJson<double>(json_t *o)
+template <> std::optional<double> convertFromJson<double>(json_t *o)
 {
     if (!o)
         return {};
@@ -68,8 +79,7 @@ template<> std::optional<double> convertFromJson<double>(json_t *o)
     return {};
 }
 
-
-template<typename T> std::optional<T> jsonSafeGet(json_t *rootJ, const std::string key)
+template <typename T> std::optional<T> jsonSafeGet(json_t *rootJ, const std::string key)
 {
     auto val = json_object_get(rootJ, key.c_str());
     if (!val)
@@ -78,5 +88,5 @@ template<typename T> std::optional<T> jsonSafeGet(json_t *rootJ, const std::stri
     }
     return convertFromJson<T>(val);
 }
-}
+} // namespace sst::rackhelpers::json
 #endif
