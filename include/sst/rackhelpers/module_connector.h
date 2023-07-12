@@ -100,10 +100,10 @@ inline std::vector<rack::Module *> findAuxSpanders()
     return result;
 }
 
-void makeCableBetween(rack::Module *inModule, int inId, rack::Module *outModule, int outId,
-                      NVGcolor col, rack::history::ComplexAction *complexAction = nullptr)
+inline void makeCableBetween(rack::Module *inModule, int inId, rack::Module *outModule, int outId,
+                             NVGcolor col, rack::history::ComplexAction *complexAction = nullptr)
 {
-    // Create cable attached to cloned ModuleWidget's input
+    // Create cable attached to cloned this->moduleWidget's input
     rack::engine::Cable *clonedCable = new rack::engine::Cable;
     clonedCable->inputModule = inModule;
     clonedCable->inputId = inId;
@@ -129,8 +129,8 @@ void makeCableBetween(rack::Module *inModule, int inId, rack::Module *outModule,
     }
 }
 
-void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> cto,
-                        rack::Module *source, int portL, int portR, NVGcolor cableColor)
+inline void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> cto,
+                               rack::Module *source, int portL, int portR, NVGcolor cableColor)
 {
     auto nm = m->inputInfos[cto.first]->name;
 
@@ -153,8 +153,8 @@ void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> c
     }
 }
 
-void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> cto,
-                       rack::Module *source, int portL, int portR, NVGcolor cableColor)
+inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> cto,
+                              rack::Module *source, int portL, int portR, NVGcolor cableColor)
 {
     auto nm = m->outputInfos[cto.first]->name;
 
@@ -172,8 +172,9 @@ void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> ct
     }));
 }
 
-void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source, int portL,
-                               int portR, NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
+inline void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
+                                      int portL, int portR,
+                                      NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
 {
     auto numIn = mixMasterNumInputs(m);
     if (numIn == 0)
@@ -189,8 +190,9 @@ void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *
     }
 }
 
-void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source, int portL,
-                                int portR, NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
+inline void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
+                                       int portL, int portR,
+                                       NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -207,8 +209,9 @@ void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module 
     }
 }
 
-void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source, int portL,
-                                 int portR, NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
+inline void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
+                                        int portL, int portR,
+                                        NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -245,25 +248,109 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
     if (!neighNC)
         return;
 
-    auto meOut = meNC->getPrimaryOutputs();
-    auto neIn = neighNC->getPrimaryInputs();
+    auto meOutVec = meNC->getPrimaryOutputs();
+    auto neInVec = neighNC->getPrimaryInputs();
 
-    if (!meOut.has_value() || !neIn.has_value())
+    if (!meOutVec.has_value() || !neInVec.has_value())
         return;
 
-    std::string nm = "Connect Output to " + neighbor->getModel()->name;
-    auto cableColor = nvgRGB(0xFF, 0x90, 0x00);
+    if (neInVec->empty() || meOutVec->empty())
+        return;
 
-    menu->addChild(new rack::MenuSeparator());
-    menu->addChild(rack::createMenuItem(nm, "", [=]() {
-        rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
-        complexAction->name = nm;
-        makeCableBetween(neighbor, neIn->first, me, meOut->first, cableColor, complexAction);
-        makeCableBetween(neighbor, neIn->second, me, meOut->second, cableColor, complexAction);
-        APP->history->push(complexAction);
-    }));
+    for (const auto &[olab, meOutB] : *meOutVec)
+    {
+        menu->addChild(new rack::MenuSeparator());
+
+        for (const auto &[ilab, neInB] : *neInVec)
+        {
+            std::string nm = "Connect " + olab + " to " + neighbor->getModel()->name + " " + ilab;
+            auto cableColor = nvgRGB(0xFF, 0x90, 0x00);
+
+            menu->addChild(rack::createMenuItem(nm, "", [=, neIn = neInB, meOut = meOutB]() {
+                rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
+                complexAction->name = nm;
+                makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor, complexAction);
+                makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
+                                 complexAction);
+                APP->history->push(complexAction);
+            }));
+        }
+    }
 }
 
+template <typename T> struct PortConnectionMixin : public T
+{
+    bool connectAsOutputToMixmaster{false};
+    bool connectAsInputFromMixmaster{false};
+    int mixMasterStereoCompanion{-1};
+
+    bool connectOutputToNeighbor{false};
+
+    void appendContextMenu(rack::Menu *menu) override
+    {
+        if (connectOutputToNeighbor)
+        {
+            connectOutputToNeighorInput(menu, this->module, false);
+        }
+
+        if (connectAsOutputToMixmaster)
+        {
+            auto mixM = findMixMasters();
+            auto auxM = findAuxSpanders();
+
+            auto lid = this->portId;
+            auto rid = mixMasterStereoCompanion;
+            if (lid > rid)
+                std::swap(lid, rid);
+
+            if (!mixM.empty() || !auxM.empty())
+            {
+                menu->addChild(new rack::MenuSeparator());
+            }
+            for (auto m : mixM)
+            {
+                menu->addChild(
+                    rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
+                        outputsToMixMasterSubMenu(x, m, this->module, lid, rid);
+                    }));
+            }
+
+            for (auto m : auxM)
+            {
+                menu->addChild(
+                    rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
+                        outputsToAuxSpanderSubMenu(x, m, this->module, lid, rid);
+                    }));
+            }
+        }
+
+        if (connectAsInputFromMixmaster)
+        {
+            auto auxM = findAuxSpanders();
+
+            auto lid = this->portId;
+            auto rid = mixMasterStereoCompanion;
+            if (lid > rid)
+                std::swap(lid, rid);
+
+            if (this->module->inputs[lid].isConnected() || this->module->inputs[rid].isConnected())
+            {
+                // Don't show the menu
+            }
+            else
+            {
+                for (auto m : auxM)
+                {
+                    menu->addChild(rack::createSubmenuItem(
+                        m->getModel()->name, "", [m, this, lid, rid](auto *x) {
+                            inputsFromAuxSpanderSubMenu(x, m, this->module, lid, rid,
+                                                        nvgRGB(38, 99, 190));
+                        }));
+                }
+            }
+        }
+    }
+};
 } // namespace sst::rackhelpers::module_connector
 
 #endif // SURGEXTRACK_MIXMASTER_CONNECTOR_H

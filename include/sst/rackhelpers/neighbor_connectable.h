@@ -17,6 +17,7 @@
 #define INCLUDE_SST_RACKHELPERS_NEIGHBOR_CONNECTABLE_H
 
 #include <optional>
+#include <vector>
 #include <utility>
 
 namespace sst::rackhelpers::module_connector
@@ -26,9 +27,16 @@ struct NeighborConnectable_V1
     virtual ~NeighborConnectable_V1() = default;
 
     typedef std::pair<int, int> stereoPort_t;
+    typedef std::pair<std::string, stereoPort_t> labeledStereoPort_t;
 
-    virtual std::optional<stereoPort_t> getPrimaryInputs() { return std::nullopt; }
-    virtual std::optional<stereoPort_t> getPrimaryOutputs() { return std::nullopt; }
+    virtual std::optional<std::vector<labeledStereoPort_t>> getPrimaryInputs()
+    {
+        return std::nullopt;
+    }
+    virtual std::optional<std::vector<labeledStereoPort_t>> getPrimaryOutputs()
+    {
+        return std::nullopt;
+    }
 };
 } // namespace sst::rackhelpers::module_connector
 #endif // SURGEXTRACK_NEIGHBOR_CONNECTABLE_H
