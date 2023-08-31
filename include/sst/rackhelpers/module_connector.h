@@ -174,7 +174,7 @@ inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, 
 
 inline void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
                                       int portL, int portR,
-                                      NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
+                                      NVGcolor cableColor)
 {
     auto numIn = mixMasterNumInputs(m);
     if (numIn == 0)
@@ -192,7 +192,7 @@ inline void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::M
 
 inline void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
                                        int portL, int portR,
-                                       NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
+                                       NVGcolor cableColor)
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -211,7 +211,7 @@ inline void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::
 
 inline void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
                                         int portL, int portR,
-                                        NVGcolor cableColor = nvgRGB(0xFF, 0x90, 0x00))
+                                        NVGcolor cableColor)
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -264,16 +264,25 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
         for (const auto &[ilab, neInB] : *neInVec)
         {
             std::string nm = "Connect " + olab + " to " + neighbor->getModel()->name + " " + ilab;
-            auto cableColor = nvgRGB(0xFF, 0x90, 0x00);
 
-            menu->addChild(rack::createMenuItem(nm, "", [=, neIn = neInB, meOut = meOutB]() {
-                rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
-                complexAction->name = nm;
-                makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor, complexAction);
-                makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
-                                 complexAction);
-                APP->history->push(complexAction);
-            }));
+            if (neighbor->inputs[neInB.first].isConnected() || neighbor->inputs[neInB.second].isConnected())
+            {
+                menu->addChild(rack::createMenuLabel(nm + " (In Use)"));
+            }
+            else
+            {
+                auto cableColor = APP->scene->rack->getNextCableColor();
+
+                menu->addChild(rack::createMenuItem(nm, "", [=, neIn = neInB, meOut = meOutB]() {
+                    rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
+                    complexAction->name = nm;
+                    makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor,
+                                     complexAction);
+                    makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
+                                     complexAction);
+                    APP->history->push(complexAction);
+                }));
+            }
         }
     }
 }
@@ -311,7 +320,7 @@ template <typename T> struct PortConnectionMixin : public T
             {
                 menu->addChild(
                     rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
-                        outputsToMixMasterSubMenu(x, m, this->module, lid, rid);
+                        outputsToMixMasterSubMenu(x, m, this->module, lid, rid, APP->scene->rack->getNextCableColor());
                     }));
             }
 
@@ -319,7 +328,7 @@ template <typename T> struct PortConnectionMixin : public T
             {
                 menu->addChild(
                     rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
-                        outputsToAuxSpanderSubMenu(x, m, this->module, lid, rid);
+                        outputsToAuxSpanderSubMenu(x, m, this->module, lid, rid, APP->scene->rack->getNextCableColor());
                     }));
             }
         }
@@ -344,7 +353,8 @@ template <typename T> struct PortConnectionMixin : public T
                     menu->addChild(rack::createSubmenuItem(
                         m->getModel()->name, "", [m, this, lid, rid](auto *x) {
                             inputsFromAuxSpanderSubMenu(x, m, this->module, lid, rid,
-                                                        nvgRGB(38, 99, 190));
+                                                        APP->scene->rack->getNextCableColor()
+                            );
                         }));
                 }
             }
