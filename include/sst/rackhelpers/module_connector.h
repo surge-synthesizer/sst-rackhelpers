@@ -173,8 +173,7 @@ inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, 
 }
 
 inline void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
-                                      int portL, int portR,
-                                      NVGcolor cableColor)
+                                      int portL, int portR, NVGcolor cableColor)
 {
     auto numIn = mixMasterNumInputs(m);
     if (numIn == 0)
@@ -191,8 +190,7 @@ inline void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::M
 }
 
 inline void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
-                                       int portL, int portR,
-                                       NVGcolor cableColor)
+                                       int portL, int portR, NVGcolor cableColor)
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -210,8 +208,7 @@ inline void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::
 }
 
 inline void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
-                                        int portL, int portR,
-                                        NVGcolor cableColor)
+                                        int portL, int portR, NVGcolor cableColor)
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -228,7 +225,8 @@ inline void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack:
     }
 }
 
-inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool useLeft)
+inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool useLeft,
+                                        int portId)
 {
     rack::Module *neighbor{nullptr};
     if (useLeft)
@@ -261,11 +259,16 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
     {
         menu->addChild(new rack::MenuSeparator());
 
+        if (!((portId == meOutB.first) || (portId == meOutB.second)))
+        {
+            continue;
+        }
         for (const auto &[ilab, neInB] : *neInVec)
         {
             std::string nm = "Connect " + olab + " to " + neighbor->getModel()->name + " " + ilab;
 
-            if (neighbor->inputs[neInB.first].isConnected() || neighbor->inputs[neInB.second].isConnected())
+            if (neighbor->inputs[neInB.first].isConnected() ||
+                neighbor->inputs[neInB.second].isConnected())
             {
                 menu->addChild(rack::createMenuLabel(nm + " (In Use)"));
             }
@@ -299,7 +302,7 @@ template <typename T> struct PortConnectionMixin : public T
     {
         if (connectOutputToNeighbor)
         {
-            connectOutputToNeighorInput(menu, this->module, false);
+            connectOutputToNeighorInput(menu, this->module, false, this->portId);
         }
 
         if (connectAsOutputToMixmaster)
@@ -320,7 +323,8 @@ template <typename T> struct PortConnectionMixin : public T
             {
                 menu->addChild(
                     rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
-                        outputsToMixMasterSubMenu(x, m, this->module, lid, rid, APP->scene->rack->getNextCableColor());
+                        outputsToMixMasterSubMenu(x, m, this->module, lid, rid,
+                                                  APP->scene->rack->getNextCableColor());
                     }));
             }
 
@@ -328,7 +332,8 @@ template <typename T> struct PortConnectionMixin : public T
             {
                 menu->addChild(
                     rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
-                        outputsToAuxSpanderSubMenu(x, m, this->module, lid, rid, APP->scene->rack->getNextCableColor());
+                        outputsToAuxSpanderSubMenu(x, m, this->module, lid, rid,
+                                                   APP->scene->rack->getNextCableColor());
                     }));
             }
         }
@@ -348,13 +353,14 @@ template <typename T> struct PortConnectionMixin : public T
             }
             else
             {
+                menu->addChild(new rack::MenuSeparator());
+
                 for (auto m : auxM)
                 {
                     menu->addChild(rack::createSubmenuItem(
                         m->getModel()->name, "", [m, this, lid, rid](auto *x) {
                             inputsFromAuxSpanderSubMenu(x, m, this->module, lid, rid,
-                                                        APP->scene->rack->getNextCableColor()
-                            );
+                                                        APP->scene->rack->getNextCableColor());
                         }));
                 }
             }
