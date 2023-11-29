@@ -20,8 +20,8 @@
 
 namespace sst::rackhelpers::json
 {
-template <typename T> std::optional<T> convertFromJson(json_t *o) { return {}; }
-template <> std::optional<std::string> convertFromJson<std::string>(json_t *o)
+template <typename T> inline std::optional<T> convertFromJson(json_t *o) { return {}; }
+template <> inline std::optional<std::string> convertFromJson<std::string>(json_t *o)
 {
     if (!o)
         return {};
@@ -32,7 +32,7 @@ template <> std::optional<std::string> convertFromJson<std::string>(json_t *o)
     }
     return {};
 }
-template <> std::optional<bool> convertFromJson<bool>(json_t *o)
+template <> inline std::optional<bool> convertFromJson<bool>(json_t *o)
 {
     if (!o)
         return {};
@@ -43,7 +43,7 @@ template <> std::optional<bool> convertFromJson<bool>(json_t *o)
     }
     return {};
 }
-template <> std::optional<int> convertFromJson<int>(json_t *o)
+template <> inline std::optional<int> convertFromJson<int>(json_t *o)
 {
     if (!o)
         return {};
@@ -55,7 +55,7 @@ template <> std::optional<int> convertFromJson<int>(json_t *o)
     return {};
 }
 
-template <> std::optional<float> convertFromJson<float>(json_t *o)
+template <> inline std::optional<float> convertFromJson<float>(json_t *o)
 {
     if (!o)
         return {};
@@ -67,7 +67,7 @@ template <> std::optional<float> convertFromJson<float>(json_t *o)
     return {};
 }
 
-template <> std::optional<double> convertFromJson<double>(json_t *o)
+template <> inline std::optional<double> convertFromJson<double>(json_t *o)
 {
     if (!o)
         return {};
@@ -79,7 +79,7 @@ template <> std::optional<double> convertFromJson<double>(json_t *o)
     return {};
 }
 
-template <typename T> std::optional<T> jsonSafeGet(json_t *rootJ, const std::string key)
+template <typename T> inline std::optional<T> jsonSafeGet(json_t *rootJ, const std::string key)
 {
     auto val = json_object_get(rootJ, key.c_str());
     if (!val)
