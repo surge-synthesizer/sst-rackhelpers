@@ -22,7 +22,7 @@
 
 namespace sst::rackhelpers::module_connector
 {
-struct NeighborConnectable_V1
+struct __attribute__((__visibility__("default"))) NeighborConnectable_V1
 {
     virtual ~NeighborConnectable_V1() = default;
 
