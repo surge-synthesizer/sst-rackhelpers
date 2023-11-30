@@ -146,8 +146,10 @@ inline void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int,
         menu->addChild(rack::createMenuItem(nm, "", [=]() {
             rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
             complexAction->name = "connect to " + nm;
-            makeCableBetween(m, cto.first, source, portL, cableColor, complexAction);
-            makeCableBetween(m, cto.second, source, portR, cableColor, complexAction);
+            if (portL >= 0)
+                makeCableBetween(m, cto.first, source, portL, cableColor, complexAction);
+            if (portR >= 0)
+                makeCableBetween(m, cto.second, source, portR, cableColor, complexAction);
             APP->history->push(complexAction);
         }));
     }
@@ -156,6 +158,9 @@ inline void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int,
 inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> cto,
                               rack::Module *source, int portL, int portR, NVGcolor cableColor)
 {
+    if (portL < 0 && portR < 0)
+        return;
+
     auto nm = m->outputInfos[cto.first]->name;
 
     // MixMaster names are of form "-01- left" or "lbl left" so kill the "left"
@@ -166,8 +171,10 @@ inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, 
     menu->addChild(rack::createMenuItem(nm, "", [=]() {
         rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
         complexAction->name = "connect to " + nm;
-        makeCableBetween(source, portL, m, cto.first, cableColor, complexAction);
-        makeCableBetween(source, portR, m, cto.second, cableColor, complexAction);
+        if (portL >= 0)
+            makeCableBetween(source, portL, m, cto.first, cableColor, complexAction);
+        if (portR >= 0)
+            makeCableBetween(source, portR, m, cto.second, cableColor, complexAction);
         APP->history->push(complexAction);
     }));
 }
@@ -268,7 +275,7 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
             std::string nm = "Connect " + olab + " to " + neighbor->getModel()->name + " " + ilab;
 
             if (neighbor->inputs[neInB.first].isConnected() ||
-                neighbor->inputs[neInB.second].isConnected())
+                (neInB.second >= 0 && neighbor->inputs[neInB.second].isConnected()))
             {
                 menu->addChild(rack::createMenuLabel(nm + " (In Use)"));
             }
@@ -279,9 +286,11 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
                 menu->addChild(rack::createMenuItem(nm, "", [=, neIn = neInB, meOut = meOutB]() {
                     rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
                     complexAction->name = nm;
-                    makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor,
-                                     complexAction);
-                    makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
+                    if (neIn.first >= 0 && meOut.first >= 0)
+                        makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor,
+                                         complexAction);
+                    if (neIn.second >= 0 && meOut.second >= 0)
+                        makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
                                      complexAction);
                     APP->history->push(complexAction);
                 }));
@@ -312,7 +321,7 @@ template <typename T> struct PortConnectionMixin : public T
 
             auto lid = this->portId;
             auto rid = mixMasterStereoCompanion;
-            if (lid > rid)
+            if (rid >= 0 && lid > rid)
                 std::swap(lid, rid);
 
             if (!mixM.empty() || !auxM.empty())
@@ -344,10 +353,11 @@ template <typename T> struct PortConnectionMixin : public T
 
             auto lid = this->portId;
             auto rid = mixMasterStereoCompanion;
-            if (lid > rid)
+            if (rid >= 0 && lid > rid)
                 std::swap(lid, rid);
 
-            if (this->module->inputs[lid].isConnected() || this->module->inputs[rid].isConnected())
+            if (this->module->inputs[lid].isConnected() ||
+                (rid >= 0 && this->module->inputs[rid].isConnected()))
             {
                 // Don't show the menu
             }
