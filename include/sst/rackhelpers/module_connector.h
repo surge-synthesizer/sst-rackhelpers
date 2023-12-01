@@ -24,6 +24,149 @@
 namespace sst::rackhelpers::module_connector
 {
 
+struct MultiColorMenuItem : rack::MenuItem
+{
+    static constexpr int colBoxSz{12};
+    static constexpr size_t maxCircles{6};
+    void draw(const DrawArgs &args) override
+    {
+        BNDwidgetState state = BND_DEFAULT;
+
+        if (APP->event->hoveredWidget == this)
+            state = BND_HOVER;
+
+        // Set active state if this MenuItem
+        rack::Menu *parentMenu = dynamic_cast<rack::Menu *>(parent);
+        if (parentMenu && parentMenu->activeEntry == this)
+            state = BND_ACTIVE;
+
+        // Main text and background
+        if (!disabled)
+            bndMenuItem(args.vg, 0.0, 0.0, box.size.x, box.size.y, state, -1, text.c_str());
+        else
+            bndMenuLabel(args.vg, 0.0, 0.0, box.size.x, box.size.y, -1, text.c_str());
+
+        bool halfMoons = false, halfTop = false;
+        if (rack::settings::cableColors.size() > maxCircles)
+        {
+            halfMoons = true;
+        }
+        auto bl =
+            box.size.x - 3 - colBoxSz * std::min(rack::settings::cableColors.size(), maxCircles);
+        hoverColor = baseColor;
+        int idx = 0;
+        for (auto &col : rack::settings::cableColors)
+        {
+            auto vg = args.vg;
+            nvgSave(vg);
+            if (idx >= maxCircles && !halfTop)
+            {
+                halfTop = true;
+                bl = box.size.x - 3 -
+                     colBoxSz * std::min(rack::settings::cableColors.size(), maxCircles);
+            }
+            else if (halfMoons && idx >= maxCircles * 2)
+            {
+                break;
+            }
+
+            idx++;
+
+            nvgBeginPath(vg);
+            if (halfMoons)
+            {
+                if (halfTop)
+                {
+                    nvgScissor(vg, bl, box.size.y * 0.5, colBoxSz, box.size.y * 0.5);
+                }
+                else
+                {
+                    nvgScissor(vg, bl, 0, colBoxSz, box.size.y * 0.5);
+                }
+            }
+            nvgEllipse(vg, bl + colBoxSz * 0.5, box.size.y * 0.5, (colBoxSz - 2) * 0.5,
+                       (colBoxSz - 2) * 0.5);
+            nvgFillColor(vg, col);
+            nvgFill(vg);
+
+            if (hoverPos.x >= bl && hoverPos.x < bl + colBoxSz)
+            {
+                bool doDraw = true;
+                if (halfMoons)
+                {
+                    doDraw = false;
+                    if (halfTop && hoverPos.y > box.size.y * 0.5)
+                    {
+                        doDraw = true;
+                    }
+                    else if (!halfTop && hoverPos.y < box.size.y * 0.5)
+                    {
+                        doDraw = true;
+                    }
+                }
+                if (doDraw)
+                {
+                    nvgStrokeColor(vg, nvgRGB(255, 255, 255));
+                    nvgStrokeWidth(vg, 1);
+                    nvgStroke(vg);
+
+                    if (halfMoons)
+                    {
+                        nvgBeginPath(vg);
+                        nvgMoveTo(vg, bl + 1, box.size.y * 0.5);
+                        nvgLineTo(vg, bl + colBoxSz - 2, box.size.y * 0.5);
+                        nvgStrokeColor(vg, nvgRGB(255, 255, 255));
+                        nvgStrokeWidth(vg, 1.5);
+                        nvgStroke(vg);
+                    }
+                    hoverColor = col;
+                }
+            }
+            bl += colBoxSz;
+            nvgRestore(vg);
+        }
+    }
+
+    rack::Vec hoverPos{-1, -1};
+
+    void onHover(const HoverEvent &e) override
+    {
+        hoverPos = e.pos;
+        OpaqueWidget::onHover(e);
+    }
+
+    void step() override
+    {
+        rack::MenuItem::step();
+        box.size.x += colBoxSz * std::min(rack::settings::cableColors.size(), maxCircles);
+    }
+
+    NVGcolor baseColor{APP->scene->rack->getNextCableColor()};
+    NVGcolor hoverColor{baseColor};
+    void onAction(const rack::event::Action &e) override
+    {
+        action(hoverColor);
+        if (alwaysConsume)
+            e.consume(this);
+    }
+
+    std::function<void(const NVGcolor &)> action = [](const auto &) {};
+    bool alwaysConsume{false};
+
+    static MultiColorMenuItem *create(std::string text, std::string rightText,
+                                      std::function<void(const NVGcolor &)> action,
+                                      bool disabled = false, bool alwaysConsume = false)
+    {
+        auto item = new MultiColorMenuItem();
+        item->text = text;
+        item->rightText = rightText;
+        item->action = action;
+        item->disabled = disabled;
+        item->alwaysConsume = alwaysConsume;
+        return item;
+    }
+};
+
 inline std::vector<rack::Module *> findMixMasters()
 {
     auto mids = rack::contextGet()->engine->getModuleIds();
@@ -130,7 +273,7 @@ inline void makeCableBetween(rack::Module *inModule, int inId, rack::Module *out
 }
 
 inline void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> cto,
-                               rack::Module *source, int portL, int portR, NVGcolor cableColor)
+                               rack::Module *source, int portL, int portR)
 {
     auto nm = m->inputInfos[cto.first]->name;
 
@@ -143,7 +286,7 @@ inline void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int,
         menu->addChild(rack::createMenuLabel(nm + " (In Use)"));
     else
     {
-        menu->addChild(rack::createMenuItem(nm, "", [=]() {
+        menu->addChild(MultiColorMenuItem::create(nm, "", [=](const auto &cableColor) {
             rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
             complexAction->name = "connect to " + nm;
             if (portL >= 0)
@@ -156,7 +299,7 @@ inline void addOutputConnector(rack::Menu *menu, rack::Module *m, std::pair<int,
 }
 
 inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, int> cto,
-                              rack::Module *source, int portL, int portR, NVGcolor cableColor)
+                              rack::Module *source, int portL, int portR)
 {
     if (portL < 0 && portR < 0)
         return;
@@ -168,7 +311,7 @@ inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, 
     if (lpos != std::string::npos)
         nm = nm.substr(0, lpos);
 
-    menu->addChild(rack::createMenuItem(nm, "", [=]() {
+    menu->addChild(MultiColorMenuItem::create(nm, "", [=](const auto &cableColor) {
         rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
         complexAction->name = "connect to " + nm;
         if (portL >= 0)
@@ -180,7 +323,7 @@ inline void addInputConnector(rack::Menu *menu, rack::Module *m, std::pair<int, 
 }
 
 inline void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
-                                      int portL, int portR, NVGcolor cableColor)
+                                      int portL, int portR)
 {
     auto numIn = mixMasterNumInputs(m);
     if (numIn == 0)
@@ -192,12 +335,12 @@ inline void outputsToMixMasterSubMenu(rack::Menu *menu, rack::Module *m, rack::M
     for (int i = 0; i < numIn; ++i)
     {
         auto cto = mixMasterInput(m, i);
-        addOutputConnector(menu, m, cto, source, portL, portR, cableColor);
+        addOutputConnector(menu, m, cto, source, portL, portR);
     }
 }
 
 inline void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
-                                       int portL, int portR, NVGcolor cableColor)
+                                       int portL, int portR)
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -210,12 +353,12 @@ inline void outputsToAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::
     {
         auto cto = auxSpanderReturn(m, i);
 
-        addOutputConnector(menu, m, cto, source, portL, portR, cableColor);
+        addOutputConnector(menu, m, cto, source, portL, portR);
     }
 }
 
 inline void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack::Module *source,
-                                        int portL, int portR, NVGcolor cableColor)
+                                        int portL, int portR)
 {
     auto numIn = auxSpanderNumInputs(m);
     if (numIn == 0)
@@ -228,7 +371,7 @@ inline void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack:
     {
         auto cto = auxSpanderSend(m, i);
 
-        addInputConnector(menu, m, cto, source, portL, portR, cableColor);
+        addInputConnector(menu, m, cto, source, portL, portR);
     }
 }
 
@@ -272,7 +415,7 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
         }
         for (const auto &[ilab, neInB] : *neInVec)
         {
-            std::string nm = "Connect " + olab + " to " + neighbor->getModel()->name + " " + ilab;
+            std::string nm = "To " + neighbor->getModel()->name + " " + ilab;
 
             if (neighbor->inputs[neInB.first].isConnected() ||
                 (neInB.second >= 0 && neighbor->inputs[neInB.second].isConnected()))
@@ -281,19 +424,19 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
             }
             else
             {
-                auto cableColor = APP->scene->rack->getNextCableColor();
-
-                menu->addChild(rack::createMenuItem(nm, "", [=, neIn = neInB, meOut = meOutB]() {
-                    rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
-                    complexAction->name = nm;
-                    if (neIn.first >= 0 && meOut.first >= 0)
-                        makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor,
-                                         complexAction);
-                    if (neIn.second >= 0 && meOut.second >= 0)
-                        makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
-                                     complexAction);
-                    APP->history->push(complexAction);
-                }));
+                menu->addChild(MultiColorMenuItem::create(
+                    nm, "", [=, neIn = neInB, meOut = meOutB](const auto &cableColor) {
+                        rack::history::ComplexAction *complexAction =
+                            new rack::history::ComplexAction;
+                        complexAction->name = nm;
+                        if (neIn.first >= 0 && meOut.first >= 0)
+                            makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor,
+                                             complexAction);
+                        if (neIn.second >= 0 && meOut.second >= 0)
+                            makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
+                                             complexAction);
+                        APP->history->push(complexAction);
+                    }));
             }
         }
     }
@@ -309,6 +452,9 @@ template <typename T> struct PortConnectionMixin : public T
 
     void appendContextMenu(rack::Menu *menu) override
     {
+        // Get base class context menu before I add my goodies
+        T::appendContextMenu(menu);
+
         if (connectOutputToNeighbor)
         {
             connectOutputToNeighorInput(menu, this->module, false, this->portId);
@@ -332,8 +478,7 @@ template <typename T> struct PortConnectionMixin : public T
             {
                 menu->addChild(
                     rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
-                        outputsToMixMasterSubMenu(x, m, this->module, lid, rid,
-                                                  APP->scene->rack->getNextCableColor());
+                        outputsToMixMasterSubMenu(x, m, this->module, lid, rid);
                     }));
             }
 
@@ -341,8 +486,7 @@ template <typename T> struct PortConnectionMixin : public T
             {
                 menu->addChild(
                     rack::createSubmenuItem(m->getModel()->name, "", [m, this, lid, rid](auto *x) {
-                        outputsToAuxSpanderSubMenu(x, m, this->module, lid, rid,
-                                                   APP->scene->rack->getNextCableColor());
+                        outputsToAuxSpanderSubMenu(x, m, this->module, lid, rid);
                     }));
             }
         }
@@ -369,8 +513,7 @@ template <typename T> struct PortConnectionMixin : public T
                 {
                     menu->addChild(rack::createSubmenuItem(
                         m->getModel()->name, "", [m, this, lid, rid](auto *x) {
-                            inputsFromAuxSpanderSubMenu(x, m, this->module, lid, rid,
-                                                        APP->scene->rack->getNextCableColor());
+                            inputsFromAuxSpanderSubMenu(x, m, this->module, lid, rid);
                         }));
                 }
             }
