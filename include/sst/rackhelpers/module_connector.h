@@ -375,6 +375,63 @@ inline void inputsFromAuxSpanderSubMenu(rack::Menu *menu, rack::Module *m, rack:
     }
 }
 
+inline std::vector<rack::Module *> findNeighborInputConnectablesInRow(const rack::Vec &pos)
+{
+    auto mids = rack::contextGet()->engine->getModuleIds();
+    std::map<float, rack::Module *> modMap; // to sort it by xpos
+    std::vector<rack::Module *> result;
+    for (auto mid : mids)
+    {
+        auto wid = APP->scene->rack->getModule(mid);
+        auto mod = rack::contextGet()->engine->getModule(mid);
+        auto nmod = dynamic_cast<NeighborConnectable_V1 *>(mod);
+        if (nmod && wid)
+        {
+            auto ip = nmod->getPrimaryInputs();
+            if (ip.has_value() && wid->box.pos != pos && wid->box.pos.y == pos.y)
+            {
+                modMap[wid->box.pos.x] = mod;
+            }
+        }
+    }
+    for (const auto &[k, v] : modMap)
+    {
+        result.push_back(v);
+    }
+    return result;
+}
+
+inline void addConnectionMenu(rack::Menu *menu, rack::Module *source, rack::Module *neighbor,
+                              const NeighborConnectable_V1::labeledStereoPort_t &from,
+                              const NeighborConnectable_V1::labeledStereoPort_t &to)
+{
+    const auto [olab, meOutB] = from;
+    const auto &[ilab, neInB] = to;
+    auto me = source;
+    std::string nm = "To " + neighbor->getModel()->name + " " + ilab;
+
+    if (neighbor->inputs[neInB.first].isConnected() ||
+        (neInB.second >= 0 && neighbor->inputs[neInB.second].isConnected()))
+    {
+        menu->addChild(rack::createMenuLabel(nm + " (In Use)"));
+    }
+    else
+    {
+        menu->addChild(MultiColorMenuItem::create(
+            nm, "", [=, neIn = neInB, meOut = meOutB](const auto &cableColor) {
+                rack::history::ComplexAction *complexAction = new rack::history::ComplexAction;
+                complexAction->name = nm;
+                if (neIn.first >= 0 && meOut.first >= 0)
+                    makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor,
+                                     complexAction);
+                if (neIn.second >= 0 && meOut.second >= 0)
+                    makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
+                                     complexAction);
+                APP->history->push(complexAction);
+            }));
+    }
+}
+
 inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool useLeft,
                                         int portId)
 {
@@ -405,38 +462,69 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
     if (neInVec->empty() || meOutVec->empty())
         return;
 
-    for (const auto &[olab, meOutB] : *meOutVec)
+    for (const auto &from : *meOutVec)
     {
+        const auto [olab, meOutB] = from;
         menu->addChild(new rack::MenuSeparator());
 
         if (!((portId == meOutB.first) || (portId == meOutB.second)))
         {
             continue;
         }
-        for (const auto &[ilab, neInB] : *neInVec)
+        for (const auto &to : *neInVec)
         {
-            std::string nm = "To " + neighbor->getModel()->name + " " + ilab;
+            addConnectionMenu(menu, me, neighbor, from, to);
+        }
+    }
+}
 
-            if (neighbor->inputs[neInB.first].isConnected() ||
-                (neInB.second >= 0 && neighbor->inputs[neInB.second].isConnected()))
+inline void connectOutputToInRowInputs(rack::Menu *menu, rack::Module *me, int portId)
+{
+    auto meNC = dynamic_cast<NeighborConnectable_V1 *>(me);
+
+    if (!meNC)
+        return;
+
+    auto thisWid = APP->scene->rack->getModule(me->id);
+    if (!thisWid)
+        return;
+
+    auto neighbors = findNeighborInputConnectablesInRow(thisWid->box.pos);
+    if (neighbors.empty())
+        return;
+
+    auto meOutVec = meNC->getPrimaryOutputs();
+
+    if (!meOutVec.has_value())
+        return;
+
+    menu->addChild(rack::createMenuLabel("Connectable Modules in This Row"));
+    for (auto neighbor : neighbors)
+    {
+        auto neighNC = dynamic_cast<NeighborConnectable_V1 *>(neighbor);
+        if (!neighNC)
+            continue; // should never happen but hey
+
+        auto neInVec = neighNC->getPrimaryInputs();
+
+        if (!meOutVec.has_value() || !neInVec.has_value())
+            continue;
+
+        if (neInVec->empty() || meOutVec->empty())
+            continue;
+
+        for (const auto &from : *meOutVec)
+        {
+            const auto [olab, meOutB] = from;
+            menu->addChild(new rack::MenuSeparator());
+
+            if (!((portId == meOutB.first) || (portId == meOutB.second)))
             {
-                menu->addChild(rack::createMenuLabel(nm + " (In Use)"));
+                continue;
             }
-            else
+            for (const auto &to : *neInVec)
             {
-                menu->addChild(MultiColorMenuItem::create(
-                    nm, "", [=, neIn = neInB, meOut = meOutB](const auto &cableColor) {
-                        rack::history::ComplexAction *complexAction =
-                            new rack::history::ComplexAction;
-                        complexAction->name = nm;
-                        if (neIn.first >= 0 && meOut.first >= 0)
-                            makeCableBetween(neighbor, neIn.first, me, meOut.first, cableColor,
-                                             complexAction);
-                        if (neIn.second >= 0 && meOut.second >= 0)
-                            makeCableBetween(neighbor, neIn.second, me, meOut.second, cableColor,
-                                             complexAction);
-                        APP->history->push(complexAction);
-                    }));
+                addConnectionMenu(menu, me, neighbor, from, to);
             }
         }
     }
@@ -458,6 +546,18 @@ template <typename T> struct PortConnectionMixin : public T
         if (connectOutputToNeighbor)
         {
             connectOutputToNeighorInput(menu, this->module, false, this->portId);
+
+            auto thisWid = APP->scene->rack->getModule(this->module->id);
+            if (!thisWid)
+                return;
+            auto nb = findNeighborInputConnectablesInRow(thisWid->box.pos);
+            if (!nb.empty())
+            {
+                menu->addChild(new rack::MenuSeparator());
+                menu->addChild(rack::createSubmenuItem("This Row", "", [this](auto *x) {
+                    connectOutputToInRowInputs(x, this->module, this->portId);
+                }));
+            }
         }
 
         if (connectAsOutputToMixmaster)
