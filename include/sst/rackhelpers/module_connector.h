@@ -465,12 +465,12 @@ inline void connectOutputToNeighorInput(rack::Menu *menu, rack::Module *me, bool
     for (const auto &from : *meOutVec)
     {
         const auto [olab, meOutB] = from;
-        menu->addChild(new rack::MenuSeparator());
 
         if (!((portId == meOutB.first) || (portId == meOutB.second)))
         {
             continue;
         }
+        menu->addChild(new rack::MenuSeparator());
         for (const auto &to : *neInVec)
         {
             addConnectionMenu(menu, me, neighbor, from, to);
@@ -516,12 +516,13 @@ inline void connectOutputToInRowInputs(rack::Menu *menu, rack::Module *me, int p
         for (const auto &from : *meOutVec)
         {
             const auto [olab, meOutB] = from;
-            menu->addChild(new rack::MenuSeparator());
 
             if (!((portId == meOutB.first) || (portId == meOutB.second)))
             {
                 continue;
             }
+
+            menu->addChild(new rack::MenuSeparator());
             for (const auto &to : *neInVec)
             {
                 addConnectionMenu(menu, me, neighbor, from, to);
