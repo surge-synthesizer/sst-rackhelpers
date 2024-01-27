@@ -54,7 +54,7 @@ struct MultiColorMenuItem : rack::MenuItem
         auto bl =
             box.size.x - 3 - colBoxSz * std::min(rack::settings::cableColors.size(), maxCircles);
         hoverColor = baseColor;
-        int idx = 0;
+        size_t idx = 0;
         for (auto &col : rack::settings::cableColors)
         {
             auto vg = args.vg;
